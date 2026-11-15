@@ -44,7 +44,8 @@ is_add_node() {
     fi
 
     uuid=$(is_random_uuid)
-    target=$IS_REALITY_TARGET
+    target=${3:-$IS_REALITY_TARGET}
+    is_valid_target "$target" || err "非法 target: ${target} (应为纯域名, 例如 www.microsoft.com)"
 
     # Reality keypair is generated locally by the sing-box binary.
     local keypair
@@ -75,6 +76,55 @@ is_add_node() {
     is_write_config
     is_restart
 
+    is_show_node "$name"
+}
+
+# Usage: is_clash_proxy [name]
+# 输出 mihomo / Clash.Meta 格式的节点配置, 便于在国内客户端中导入.
+is_clash_proxy() {
+    local name=$1 node ip port uuid pub sid target
+    [[ -z $name ]] && err "请指定节点名称."
+    node=$(is_read_nodes | jq -c --arg n "$name" '.[] | select(.name == $n)')
+    [[ -z $node ]] && err "节点不存在: ${name}"
+    ip=$(is_local_ip)
+    port=$(jq -r '.port' <<<"$node")
+    uuid=$(jq -r '.uuid' <<<"$node")
+    pub=$(jq -r '.public_key' <<<"$node")
+    sid=$(jq -r '.short_id' <<<"$node")
+    target=$(jq -r '.target' <<<"$node")
+    cat <<YAML
+- name: "${name}"
+  type: vless
+  server: ${ip}
+  port: ${port}
+  uuid: ${uuid}
+  network: tcp
+  udp: true
+  tls: true
+  servername: ${target}
+  flow: xtls-rprx-vision
+  client-fingerprint: chrome
+  reality-opts:
+    public-key: ${pub}
+    short-id: ${sid}
+YAML
+}
+
+# Usage: is_set_target [name] [target]
+# 修改已有节点的 Reality 握手目标 (SNI), 用于适配不同网络环境.
+is_set_target() {
+    local name=$1 target=$2
+    [[ -z $name ]] && err "请指定节点名称."
+    [[ -z $target ]] && err "请指定新的目标域名."
+    is_valid_target "$target" || err "非法 target: ${target} (应为纯域名, 例如 www.microsoft.com)"
+    is_read_nodes | jq -e --arg n "$name" '.[] | select(.name == $n)' >/dev/null 2>&1 \
+        || err "节点不存在: ${name}"
+
+    is_write_nodes "$(is_read_nodes | jq --arg n "$name" --arg t "$target" \
+        'map(if .name == $n then .target = $t else . end)')"
+    is_write_config
+    is_restart
+    msg "节点 ${name} 的 Reality 目标已更新为: ${target}"
     is_show_node "$name"
 }
 

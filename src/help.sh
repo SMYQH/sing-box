@@ -8,7 +8,9 @@ ${IS_CORE_NAME} 管理脚本 v${IS_SH_VER}
 用法: sb <命令> [参数]
 
   install                    安装 ${IS_CORE_NAME} 内核及服务
-  add [名称] [端口]          添加 VLESS + Reality 节点
+  add [名称] [端口] [--target 域名]   添加 VLESS + Reality 节点
+  target <名称> <域名>        修改节点的 Reality 握手目标 (SNI)
+  clash <名称>                输出 mihomo / Clash.Meta 格式节点配置
   list                       列出所有节点
   show <名称>                 显示节点详情及分享链接
   del <名称>                  删除节点

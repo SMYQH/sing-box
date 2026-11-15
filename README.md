@@ -43,7 +43,8 @@ sb install
 
 ```bash
 sb add              # 添加节点 (交互式)
-sb add mynode 443   # 添加节点 (指定名称与端口)
+sb add mynode 25530              # 添加节点 (指定名称与端口)
+sb add mynode 25530 --target www.microsoft.com   # 指定 Reality 握手目标
 sb list             # 列出所有节点
 sb show mynode      # 查看节点详情与分享链接
 sb del mynode       # 删除节点
@@ -68,6 +69,26 @@ sb help             # 帮助
 | `/usr/local/lib/sing-box/` | 管理脚本 |
 | `/usr/local/bin/sb` | 管理命令入口 |
 
+## Reality 握手目标 (target)
+
+Reality 客户端与服务器之间的 TLS ClientHello 中会携带 `SNI`，且该 SNI 在链路上是可见的。
+审查或过滤设备可能针对特定 SNI 做处理，导致握手被服务端拒绝，日志表现为：
+
+```
+TLS handshake: REALITY: processed invalid connection
+```
+
+因此握手目标应当选择**在客户端所在网络中不会被针对性处理**的域名。默认值为 `github.com`
+（保持「仅连接 GitHub」原则）；若所处网络对 `github.com` 的 SNI 存在干扰，可按节点级别调整：
+
+```bash
+sb target mynode www.microsoft.com   # 修改已有节点的目标 (UUID/密钥不变, 立即生效)
+sb add mynode2 25531 --target www.microsoft.com
+```
+
+> 注意：修改 target 会使服务端产生一条指向该域名（非 GitHub）的出站握手连接，
+> 与「仅连接 GitHub」原则冲突。请仅在确有需要时使用。
+
 ## 客户端参数
 
 分享链接形如：
@@ -78,10 +99,26 @@ vless://<uuid>@<server>:<port>?encryption=none&flow=xtls-rprx-vision&security=re
 
 其中 `pbk` 为 Public Key、`sid` 为 Short ID，二者由 `sb show <name>` 输出。
 
+## 常见故障排查
+
+| 现象 | 服务端日志 | 原因 | 处理 |
+|------|-----------|------|------|
+| 连接超时 | 无任何记录 | 端口未放行 / 网络不通 | 检查 `ss -tln \| grep <端口>` 与服务商端口策略 |
+| 握手被拒 | `REALITY: processed invalid connection` | 客户端参数错误或 ClientHello 被链路篡改 | 核对 `pbk` / `sid` / `sni`；确认客户端已启用 Reality 与 `fp=chrome`；尝试更换 `target` |
+| 握手成功但无流量 | `inbound connection to ...` 缺失 | UUID 不匹配或未带 `flow` | 核对 UUID 与 `flow=xtls-rprx-vision` |
+| 客户端能连但很慢 | - | 握手目标链路质量差 | 更换 `target` 为就近且未受干扰的域名 |
+
+导出 mihomo / Clash.Meta 格式配置：
+
+```bash
+sb clash mynode
+```
+
 ## 安全说明
 
 - 节点私钥保存在 `/etc/sing-box/nodes.json`，权限为 `600`。
 - Reality 握手目标默认为 `github.com`，因此服务端握手过程同样只与 GitHub 通信。
+- 客户端必须使用 uTLS 浏览器指纹（默认 `chrome`）；`flow` 必须为 `xtls-rprx-vision`。
 - 建议自行使用防火墙限制管理端口的来源地址。
 
 ## 许可

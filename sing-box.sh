@@ -45,7 +45,24 @@ add)
     shift
     is_root
     is_prepare_dirs
-    is_add_node "$1" "$2"
+    _name="" _port="" _target=""
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --target | -t)
+                _target=$2
+                shift 2
+                ;;
+            *)
+                if [[ -z $_name ]]; then
+                    _name=$1
+                elif [[ -z $_port ]]; then
+                    _port=$1
+                fi
+                shift
+                ;;
+        esac
+    done
+    is_add_node "$_name" "$_port" "$_target"
     ;;
 list)
     is_list_nodes
@@ -60,6 +77,19 @@ del | delete)
     [[ -z $1 ]] && err "请指定节点名称."
     is_root
     is_del_node "$1"
+    ;;
+clash)
+    shift
+    [[ -z $1 ]] && err "请指定节点名称."
+    is_clash_proxy "$1"
+    ;;
+target)
+    shift
+    [[ -z $1 ]] && err "请指定节点名称."
+    [[ -z $2 ]] && err "请指定新的目标域名."
+    is_root
+    is_prepare_dirs
+    is_set_target "$1" "$2"
     ;;
 sync)
     # 根据节点列表重新生成配置并重启服务.
