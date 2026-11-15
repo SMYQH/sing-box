@@ -1,0 +1,25 @@
+name: Main
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: archive
+        run: tar zcvf sing-box-script.tar.gz --exclude=.git --exclude=.github .
+
+      - name: release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sing-box-script.tar.gz
+          generate_release_notes: true

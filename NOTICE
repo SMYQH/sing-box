@@ -1,0 +1,30 @@
+sing-box 管理脚本 (VLESS + Reality)
+Copyright (C) 2025 SMYQH and contributors
+
+本项目包含并改编自以下项目:
+
+  - sing-box (https://github.com/SagerNet/sing-box)
+    Copyright (C) 2023 SagerNet, SagerNet Team
+    Licensed under the GNU General Public License v3.0
+
+  - sing-box shell 脚本项目 (https://github.com/233boy/sing-box)
+    Copyright (C) 2022 233boy
+    Licensed under the GNU General Public License v3.0
+
+本项目为上述项目的精简修改版本, 移除了数据采集 / 遥测逻辑、第三方 DNS 与
+IP 查询服务、ACME 自动证书签发依赖, 以及全部推广内容, 并移除了脚本自更新功能.
+
+依据 GPL-3.0 第 4 条与第 5 条, 上述原版权声明与许可声明予以保留.
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
