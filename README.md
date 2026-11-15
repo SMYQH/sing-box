@@ -47,6 +47,7 @@ sb add mynode 443   # 添加节点 (指定名称与端口)
 sb list             # 列出所有节点
 sb show mynode      # 查看节点详情与分享链接
 sb del mynode       # 删除节点
+sb sync             # 依据节点列表重新生成配置并重启服务
 sb update           # 更新 sing-box 内核 (仅从 GitHub)
 sb start|stop|restart|status
 sb logs             # 查看服务日志
