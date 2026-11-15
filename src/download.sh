@@ -76,9 +76,14 @@ is_download_core() {
     fi
 
     # 已安装同版本内核时跳过下载, 使重复安装 / 升级更轻量
-    if [[ -x $IS_CORE_BIN ]] && "$IS_CORE_BIN" version 2>/dev/null | head -n1 | grep -qF "$ver"; then
-        msg "已安装 ${IS_CORE_NAME} ${ver}, 跳过下载."
-        return
+    # 注意: GitHub API 的版本号带 v 前缀 (v1.14.4), 而内核自报版本不带 (1.14.4), 需归一化比较
+    if [[ -x $IS_CORE_BIN ]]; then
+        local cur_ver
+        cur_ver=$("$IS_CORE_BIN" version 2>/dev/null | head -n1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+' | head -n1)
+        if [[ -n $cur_ver && $cur_ver == "${ver#v}" ]]; then
+            msg "已安装 ${IS_CORE_NAME} ${cur_ver}, 跳过下载."
+            return
+        fi
     fi
 
     meta=$(is_pick_asset "$ver" "$arch")
