@@ -13,7 +13,7 @@ IS_REPO="SMYQH/singbox"
 IS_REPO_URL="https://github.com/${IS_REPO}"
 : "${IS_TARBALL:=https://github.com/${IS_REPO}/archive/refs/heads/main.tar.gz}"
 
-IS_SH_VER="1.0.0"
+IS_SH_VER="1.0.1"
 IS_CORE_NAME="sing-box"
 
 red='\e[31m'
@@ -33,6 +33,13 @@ err() {
     echo -e "\n$(_red 错误!) $1\n"
     exit 1
 }
+
+# 统一的临时目录清理: 正常结束或被中断时都不留残留
+IS_TMPDIR=""
+_cleanup_tmp() {
+    [[ -n ${IS_TMPDIR:-} && -d ${IS_TMPDIR:-} ]] && rm -rf "$IS_TMPDIR"
+}
+trap _cleanup_tmp EXIT INT TERM
 
 [[ $EUID != 0 ]] && err "请使用 root 用户运行此脚本."
 
@@ -61,6 +68,7 @@ install_deps() {
 install_script() {
     local tmpdir sh_dir
     tmpdir=$(mktemp -d)
+    IS_TMPDIR="$tmpdir"
     sh_dir="/usr/local/lib/sing-box"
 
     msg "从 GitHub 下载管理脚本 ..."
@@ -71,9 +79,11 @@ install_script() {
     tar zxf "${tmpdir}/main.tar.gz" -C "$tmpdir" || err "解压失败."
     [[ ! -d $tmpdir/singbox-main ]] && err "未找到预期的目录结构."
 
+    # 先清空旧目录, 避免上一版本中被删除的文件长期驻留
+    rm -rf "$sh_dir"
     mkdir -p "$sh_dir"
     cp -rf "${tmpdir}/singbox-main/." "$sh_dir/"
-    rm -rf "$tmpdir"
+    rm -rf "${sh_dir}/.github"
 
     cat >/usr/local/bin/sb <<WRAPPER
 #!/bin/bash

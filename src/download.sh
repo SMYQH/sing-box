@@ -1,6 +1,13 @@
 #!/bin/bash
 # Download helpers. Every remote request in this file targets GitHub only.
 
+# 统一的临时目录清理: 失败或被中断时也不留残留
+IS_CORE_TMPDIR=""
+_cleanup_core_tmp() {
+    [[ -n ${IS_CORE_TMPDIR:-} && -d ${IS_CORE_TMPDIR:-} ]] && rm -rf "$IS_CORE_TMPDIR"
+}
+trap _cleanup_core_tmp EXIT INT TERM
+
 # curl wrapper with retries.
 _curl() {
     curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 15 "$@"
@@ -61,10 +68,17 @@ is_download_core() {
     local ver=${1:-} arch meta name url digest tmpdir
     arch=$(is_arch)
     tmpdir=$(mktemp -d)
+    IS_CORE_TMPDIR="$tmpdir"
 
     if [[ -z $ver ]]; then
         ver=$(is_latest_version)
         [[ -z $ver ]] && err "无法从 GitHub 获取 ${IS_CORE_NAME} 最新版本."
+    fi
+
+    # 已安装同版本内核时跳过下载, 使重复安装 / 升级更轻量
+    if [[ -x $IS_CORE_BIN ]] && "$IS_CORE_BIN" version 2>/dev/null | head -n1 | grep -qF "$ver"; then
+        msg "已安装 ${IS_CORE_NAME} ${ver}, 跳过下载."
+        return
     fi
 
     meta=$(is_pick_asset "$ver" "$arch")
@@ -75,7 +89,7 @@ is_download_core() {
     digest=$(awk -F'\t' '{print $3}' <<<"$meta")
 
     msg "下载 ${IS_CORE_NAME} ${ver} (${arch}) ..."
-    _curl -fL --retry 3 -o "${tmpdir}/${name}" "$url" || err "下载失败: ${url}"
+    _curl -fL --retry 3 --progress-bar -o "${tmpdir}/${name}" "$url" || err "下载失败: ${url}"
 
     is_verify_sha256 "${tmpdir}/${name}" "$digest"
 

@@ -34,7 +34,9 @@ is_uninstall() {
     is_root
     is_remove_service
     _rm "$IS_CORE_DIR"
-    msg "已卸载."
+    # 脚本自身所在目录与 sb 入口需延迟删除, 避免运行中的脚本被移除
+    nohup bash -c "sleep 1; rm -rf '${IS_SCRIPT_DIR}' '${IS_SB_BIN}'" >/dev/null 2>&1 &
+    msg "已卸载. 管理脚本与 sb 命令将在 1 秒后被移除."
 }
 
 case ${1:-menu} in

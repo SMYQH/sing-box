@@ -5,7 +5,10 @@
 # Ensure the runtime directories exist.
 is_prepare_dirs() {
     _mkdir "$IS_CORE_DIR" "$IS_CORE_DIR/bin" "$IS_CONF_DIR" "$IS_LOG_DIR"
-    [[ -f $IS_NODES_JSON ]] || echo '[]' >"$IS_NODES_JSON"
+    if [[ ! -f $IS_NODES_JSON ]]; then
+        echo '[]' >"$IS_NODES_JSON"
+        chmod 600 "$IS_NODES_JSON"
+    fi
 }
 
 # Read the node registry.

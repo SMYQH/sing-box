@@ -39,6 +39,10 @@ apt-get update && apt-get install -y curl tar jq
 sb install
 ```
 
+重复执行 `bash install.sh` 是安全的：安装前会先清空 `/usr/local/lib/sing-box`，
+旧版本中已删除的文件不会残留；若目标版本的内核已安装，则跳过内核下载。
+安装过程中产生的临时目录在正常结束、失败或被中断时都会被清理。
+
 ## 使用
 
 ```bash
@@ -52,7 +56,7 @@ sb sync             # 依据节点列表重新生成配置并重启服务
 sb update           # 更新 sing-box 内核 (仅从 GitHub)
 sb start|stop|restart|status
 sb logs             # 查看服务日志
-sb uninstall        # 卸载
+sb uninstall        # 完整卸载 (内核 / 服务 / 管理脚本 / sb 命令)
 sb help             # 帮助
 ```
 
@@ -116,7 +120,7 @@ sb clash mynode
 
 ## 安全说明
 
-- 节点私钥保存在 `/etc/sing-box/nodes.json`，权限为 `600`。
+- 节点私钥保存在 `/etc/sing-box/nodes.json`，权限为 `600`（创建时即设为此权限）。
 - Reality 握手目标默认为 `www.microsoft.com`；若需严格只与 GitHub 通信，可执行
   `sb target <名称> github.com`。
 - 客户端必须使用 uTLS 浏览器指纹（默认 `chrome`）；`flow` 必须为 `xtls-rprx-vision`。

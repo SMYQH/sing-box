@@ -8,7 +8,7 @@
 #     no ACME / certificate authorities, no analytics of any kind.
 #   - The public IP is derived from the local network interface, not queried.
 
-IS_SH_VER="1.0.0"
+IS_SH_VER="1.0.1"
 IS_CORE_NAME="sing-box"
 IS_CORE_REPO="SagerNet/sing-box"
 IS_CORE_API="https://api.github.com/repos/${IS_CORE_REPO}/releases/latest"
@@ -19,6 +19,10 @@ IS_CONF_DIR="${IS_CORE_DIR}/conf"
 IS_CONFIG_JSON="${IS_CORE_DIR}/config.json"
 IS_NODES_JSON="${IS_CORE_DIR}/nodes.json"
 IS_LOG_DIR="/var/log/sing-box"
+
+# 管理脚本自身的安装位置 (与 install.sh 保持一致)
+IS_SCRIPT_DIR="/usr/local/lib/sing-box"
+IS_SB_BIN="/usr/local/bin/sb"
 
 # Reality handshake target. Kept on GitHub so that the server never
 # contacts a third-party host during the Reality handshake.
