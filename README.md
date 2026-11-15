@@ -5,7 +5,7 @@
 ## 特性
 
 - **零数据采集**：不收集、不上报任何用户数据与遥测信息。
-- **仅连接 GitHub**：除 GitHub（`api.github.com` / `github.com`）外，脚本不会访问任何外部主机。
+- **仅连接 GitHub**：除 GitHub（`api.github.com` / `github.com`）外，**脚本本身**不会访问任何外部主机。
   - 不使用 IP 查询服务（如 `one.one.one.one`）获取公网 IP，公网 IP 从本机网卡读取。
   - 不内置第三方 DNS 服务器（Cloudflare / Google DoH），DNS 交由系统解析。
   - 不含 Caddy / ACME 自动证书签发，不与 Let's Encrypt 等 CA 通信。
@@ -78,16 +78,16 @@ Reality 客户端与服务器之间的 TLS ClientHello 中会携带 `SNI`，且�
 TLS handshake: REALITY: processed invalid connection
 ```
 
-因此握手目标应当选择**在客户端所在网络中不会被针对性处理**的域名。默认值为 `github.com`
-（保持「仅连接 GitHub」原则）；若所处网络对 `github.com` 的 SNI 存在干扰，可按节点级别调整：
+因此握手目标应当选择**在客户端所在网络中不会被针对性处理**的域名。默认值为
+`www.microsoft.com`（该域名在多数网络下不会被针对性处理，兼容性最好），可按节点级别调整：
 
 ```bash
-sb target mynode www.microsoft.com   # 修改已有节点的目标 (UUID/密钥不变, 立即生效)
-sb add mynode2 25531 --target www.microsoft.com
+sb target mynode github.com          # 修改已有节点的目标 (UUID/密钥不变, 立即生效)
+sb add mynode2 25531 --target github.com
 ```
 
-> 注意：修改 target 会使服务端产生一条指向该域名（非 GitHub）的出站握手连接，
-> 与「仅连接 GitHub」原则冲突。请仅在确有需要时使用。
+> 注意：Reality 握手本身必然要求服务端与目标域名建立一次出站连接，这是协议本身的组成部分，
+> 不属于「脚本主动访问外部主机」的行为。若必须严格只连 GitHub，把 target 设为 `github.com` 即可。
 
 ## 客户端参数
 
@@ -117,7 +117,8 @@ sb clash mynode
 ## 安全说明
 
 - 节点私钥保存在 `/etc/sing-box/nodes.json`，权限为 `600`。
-- Reality 握手目标默认为 `github.com`，因此服务端握手过程同样只与 GitHub 通信。
+- Reality 握手目标默认为 `www.microsoft.com`；若需严格只与 GitHub 通信，可执行
+  `sb target <名称> github.com`。
 - 客户端必须使用 uTLS 浏览器指纹（默认 `chrome`）；`flow` 必须为 `xtls-rprx-vision`。
 - 建议自行使用防火墙限制管理端口的来源地址。
 

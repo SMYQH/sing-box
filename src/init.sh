@@ -22,7 +22,7 @@ IS_LOG_DIR="/var/log/sing-box"
 
 # Reality handshake target. Kept on GitHub so that the server never
 # contacts a third-party host during the Reality handshake.
-IS_REALITY_TARGET="github.com"
+IS_REALITY_TARGET="www.microsoft.com"
 # Validate a Reality handshake target: plain hostname only (no scheme/path/port).
 is_valid_target() {
     local t=$1
