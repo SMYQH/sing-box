@@ -61,6 +61,14 @@ del | delete)
     is_root
     is_del_node "$1"
     ;;
+sync)
+    # 根据节点列表重新生成配置并重启服务.
+    is_root
+    is_prepare_dirs
+    is_write_config
+    is_restart
+    msg "配置已同步."
+    ;;
 update)
     is_root
     is_update_core

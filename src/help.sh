@@ -12,6 +12,7 @@ ${IS_CORE_NAME} 管理脚本 v${IS_SH_VER}
   list                       列出所有节点
   show <名称>                 显示节点详情及分享链接
   del <名称>                  删除节点
+  sync                       根据节点列表重新生成配置并重启服务
   update                     更新 ${IS_CORE_NAME} 内核 (仅从 GitHub 获取)
   start | stop | restart      服务控制
   status                     查看服务状态
