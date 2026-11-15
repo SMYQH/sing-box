@@ -66,24 +66,36 @@ install_deps() {
 
 # download and install the management script from GitHub
 install_script() {
-    local tmpdir sh_dir
+    local tmpdir sh_dir src_dir
     tmpdir=$(mktemp -d)
     IS_TMPDIR="$tmpdir"
     sh_dir="/usr/local/lib/sing-box"
 
-    msg "从 GitHub 下载管理脚本 ..."
-    if ! curl -fsSL --retry 3 -o "${tmpdir}/main.tar.gz" "$IS_TARBALL"; then
-        err "下载失败: ${IS_TARBALL}"
+    # 从仓库检出目录运行时直接使用本地文件。
+    # 原因: GitHub 的分支 tarball 存在 CDN 缓存, push 后短时间内取到的仍是旧版本,
+    #       会造成"明明 clone 到新版本却装上旧脚本"的现象。
+    src_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
+    if [[ -n $src_dir && -f "$src_dir/sing-box.sh" && -d "$src_dir/src" ]]; then
+        msg "使用当前目录的管理脚本: ${src_dir}"
+        # 先清空旧目录, 避免上一版本中被删除的文件长期驻留
+        rm -rf "$sh_dir"
+        mkdir -p "$sh_dir"
+        cp -rf "${src_dir}/." "$sh_dir/"
+    else
+        msg "从 GitHub 下载管理脚本 ..."
+        if ! curl -fsSL --retry 3 -o "${tmpdir}/main.tar.gz" "$IS_TARBALL"; then
+            err "下载失败: ${IS_TARBALL}"
+        fi
+
+        tar zxf "${tmpdir}/main.tar.gz" -C "$tmpdir" || err "解压失败."
+        [[ ! -d $tmpdir/singbox-main ]] && err "未找到预期的目录结构."
+
+        # 先清空旧目录, 避免上一版本中被删除的文件长期驻留
+        rm -rf "$sh_dir"
+        mkdir -p "$sh_dir"
+        cp -rf "${tmpdir}/singbox-main/." "$sh_dir/"
     fi
-
-    tar zxf "${tmpdir}/main.tar.gz" -C "$tmpdir" || err "解压失败."
-    [[ ! -d $tmpdir/singbox-main ]] && err "未找到预期的目录结构."
-
-    # 先清空旧目录, 避免上一版本中被删除的文件长期驻留
-    rm -rf "$sh_dir"
-    mkdir -p "$sh_dir"
-    cp -rf "${tmpdir}/singbox-main/." "$sh_dir/"
-    rm -rf "${sh_dir}/.github"
+    rm -rf "${sh_dir}/.github" "${sh_dir}/.git"
 
     cat >/usr/local/bin/sb <<WRAPPER
 #!/bin/bash
