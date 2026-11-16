@@ -12,8 +12,15 @@ load help.sh
 
 is_update_core() {
     local current
+    # 内核目录可能还不存在 (全新主机, 或先执行 update 而未 install),
+    # 必须先创建目录, 否则下载完成后复制内核会失败。
+    is_prepare_dirs
     current=$("$IS_CORE_BIN" version 2>/dev/null | head -n1)
-    msg "当前版本: ${current}"
+    if [[ -n $current ]]; then
+        msg "当前版本: ${current}"
+    else
+        msg "未检测到已安装的 ${IS_CORE_NAME} 内核, 将直接下载安装."
+    fi
     is_download_core
     is_restart
     msg "${IS_CORE_NAME} 内核已更新."
@@ -51,6 +58,8 @@ add)
     while [[ $# -gt 0 ]]; do
         case $1 in
             --target | -t)
+                # 必须带值: 否则 shift 2 会因参数不足而失败, 循环永远停不下来
+                [[ $# -lt 2 || -z ${2:-} ]] && err "--target 需要指定目标域名."
                 _target=$2
                 shift 2
                 ;;
@@ -78,6 +87,7 @@ del | delete)
     shift
     [[ -z $1 ]] && err "请指定节点名称."
     is_root
+    is_prepare_dirs
     is_del_node "$1"
     ;;
 clash)

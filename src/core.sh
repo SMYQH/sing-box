@@ -11,18 +11,43 @@ is_prepare_dirs() {
     fi
 }
 
+# 原子写入 JSON 文件。
+# 先写入同目录下的临时文件, 只有 jq 成功且输出非空时才用 mv 覆盖目标文件。
+# 原因: 直接用 > 重定向会先把目标文件截断, 一旦 jq 失败 (例如端口非法),
+#       节点列表就会变成 0 字节文件, 其中保存的 Reality 私钥将全部丢失。
+# Usage: is_write_json <file> <json> [label]
+is_write_json() {
+    local file=$1 data=$2 label=${3:-文件} tmp out
+    tmp=$(mktemp "${file}.tmp.XXXXXX") || err "无法写入${label}: ${file}"
+    if ! out=$(jq '.' <<<"$data" 2>/dev/null) || [[ -z $out ]]; then
+        rm -f "$tmp"
+        err "无法写入${label}: ${file}"
+    fi
+    if ! printf '%s\n' "$out" >"$tmp"; then
+        rm -f "$tmp"
+        err "无法写入${label}: ${file}"
+    fi
+    chmod 600 "$tmp"
+    if ! mv -f "$tmp" "$file"; then
+        rm -f "$tmp"
+        err "无法写入${label}: ${file}"
+    fi
+}
+
 # Read the node registry.
+# 文件缺失时返回空列表; 文件损坏时返回非 0,
+# 避免把损坏的数据当成空列表覆盖回去。
 is_read_nodes() {
-    [[ -f $IS_NODES_JSON ]] || { echo '[]'; return; }
-    jq '.' "$IS_NODES_JSON" 2>/dev/null || echo '[]'
+    local out
+    [[ -f $IS_NODES_JSON ]] || { echo '[]'; return 0; }
+    out=$(jq '.' "$IS_NODES_JSON" 2>/dev/null) || return 1
+    [[ -z $out ]] && out='[]'
+    printf '%s\n' "$out"
 }
 
 # Persist the node registry.
 is_write_nodes() {
-    local nodes=$1
-    jq '.' <<<"$nodes" >"$IS_NODES_JSON" 2>/dev/null ||
-        err "无法写入节点列表."
-    chmod 600 "$IS_NODES_JSON"
+    is_write_json "$IS_NODES_JSON" "$1" "节点列表"
 }
 
 # Pick a free TCP port.
@@ -38,11 +63,24 @@ is_free_port() {
 # Create a new VLESS + Reality node.
 # Usage: is_add_node [name] [port]
 is_add_node() {
-    local name=$1 port=$2 uuid priv_key pub_key short_id target
+    local name=$1 port=$2 uuid priv_key pub_key short_id target nodes
     [[ -z $name ]] && name="node-$(date +%s)"
-    [[ -z $port ]] && port=$(is_free_port)
 
-    if is_read_nodes | jq -e --arg n "$name" '.[] | select(.name == $n)' >/dev/null 2>&1; then
+    # 端口必须是 1-65535 的整数: 否则 jq --argjson 会失败,
+    # 进而在写节点列表时把整个列表 (含 Reality 私钥) 清空。
+    if [[ -n $port ]]; then
+        [[ $port =~ ^[0-9]+$ ]] || err "非法端口: ${port} (应为 1-65535 的整数)."
+        port=$((10#$port))
+        ((port >= 1 && port <= 65535)) || err "非法端口: ${port} (应为 1-65535 的整数)."
+    else
+        port=$(is_free_port)
+    fi
+
+    nodes=$(is_read_nodes) || err "节点列表文件已损坏: ${IS_NODES_JSON}"
+    jq -e 'type == "array"' >/dev/null 2>&1 <<<"$nodes" ||
+        err "节点列表文件格式错误: ${IS_NODES_JSON}"
+
+    if jq -e --arg n "$name" '.[] | select(.name == $n)' >/dev/null 2>&1 <<<"$nodes"; then
         err "节点名称已存在: ${name}"
     fi
 
@@ -71,9 +109,9 @@ is_add_node() {
             short_id: $sid,
             target: $target,
             type: "vless-reality"
-        }')
+        }') || err "构建节点信息失败."
 
-    is_write_nodes "$(is_read_nodes | jq --argjson n "$node" '. + [$n]')"
+    is_write_nodes "$(jq --argjson n "$node" '. + [$n]' <<<"$nodes")"
     msg "已创建节点: ${name} (端口 ${port})"
 
     is_write_config
@@ -85,9 +123,10 @@ is_add_node() {
 # Usage: is_clash_proxy [name]
 # 输出 mihomo / Clash.Meta 格式的节点配置, 便于在国内客户端中导入.
 is_clash_proxy() {
-    local name=$1 node ip port uuid pub sid target
+    local name=$1 node ip port uuid pub sid target nodes
     [[ -z $name ]] && err "请指定节点名称."
-    node=$(is_read_nodes | jq -c --arg n "$name" '.[] | select(.name == $n)')
+    nodes=$(is_read_nodes) || err "节点列表文件已损坏: ${IS_NODES_JSON}"
+    node=$(jq -c --arg n "$name" '.[] | select(.name == $n)' <<<"$nodes")
     [[ -z $node ]] && err "节点不存在: ${name}"
     ip=$(is_local_ip)
     port=$(jq -r '.port' <<<"$node")
@@ -116,15 +155,16 @@ YAML
 # Usage: is_set_target [name] [target]
 # 修改已有节点的 Reality 握手目标 (SNI), 用于适配不同网络环境.
 is_set_target() {
-    local name=$1 target=$2
+    local name=$1 target=$2 nodes
     [[ -z $name ]] && err "请指定节点名称."
     [[ -z $target ]] && err "请指定新的目标域名."
     is_valid_target "$target" || err "非法 target: ${target} (应为纯域名, 例如 www.microsoft.com)"
-    is_read_nodes | jq -e --arg n "$name" '.[] | select(.name == $n)' >/dev/null 2>&1 \
+    nodes=$(is_read_nodes) || err "节点列表文件已损坏: ${IS_NODES_JSON}"
+    jq -e --arg n "$name" '.[] | select(.name == $n)' >/dev/null 2>&1 <<<"$nodes" \
         || err "节点不存在: ${name}"
 
-    is_write_nodes "$(is_read_nodes | jq --arg n "$name" --arg t "$target" \
-        'map(if .name == $n then .target = $t else . end)')"
+    is_write_nodes "$(jq --arg n "$name" --arg t "$target" \
+        'map(if .name == $n then .target = $t else . end)' <<<"$nodes")"
     is_write_config
     is_restart
     msg "节点 ${name} 的 Reality 目标已更新为: ${target}"
@@ -134,7 +174,7 @@ is_set_target() {
 # Build the sing-box configuration from the node registry.
 is_write_config() {
     local nodes config count
-    nodes=$(is_read_nodes)
+    nodes=$(is_read_nodes) || err "节点列表文件已损坏: ${IS_NODES_JSON}"
     count=$(jq 'length' <<<"$nodes")
 
     if [[ $count -eq 0 ]]; then
@@ -168,8 +208,7 @@ is_write_config() {
         }' <<<"$nodes")
     fi
 
-    jq '.' <<<"$config" >"$IS_CONFIG_JSON" || err "无法生成配置文件."
-    chmod 600 "$IS_CONFIG_JSON"
+    is_write_json "$IS_CONFIG_JSON" "$config" "配置文件"
 
     # Validate with the real binary before it is ever loaded by the service.
     "$IS_CORE_BIN" check -c "$IS_CONFIG_JSON" || err "配置校验失败."
@@ -179,8 +218,9 @@ is_write_config() {
 # Print the details of a node, including the client share link.
 # Usage: is_show_node [name]
 is_show_node() {
-    local name=$1 node ip
-    node=$(is_read_nodes | jq --arg n "$name" '.[] | select(.name == $n)')
+    local name=$1 node ip nodes
+    nodes=$(is_read_nodes) || err "节点列表文件已损坏: ${IS_NODES_JSON}"
+    node=$(jq -c --arg n "$name" '.[] | select(.name == $n)' <<<"$nodes")
     [[ -z $node ]] && err "未找到节点: ${name}"
 
     ip=$(is_local_ip)
@@ -212,7 +252,7 @@ is_show_node() {
 # List all nodes.
 is_list_nodes() {
     local nodes count
-    nodes=$(is_read_nodes)
+    nodes=$(is_read_nodes) || err "节点列表文件已损坏: ${IS_NODES_JSON}"
     count=$(jq 'length' <<<"$nodes")
     if [[ $count -eq 0 ]]; then
         echo "暂无节点."
@@ -227,7 +267,7 @@ is_list_nodes() {
 # Usage: is_del_node <name>
 is_del_node() {
     local name=$1 nodes
-    nodes=$(is_read_nodes)
+    nodes=$(is_read_nodes) || err "节点列表文件已损坏: ${IS_NODES_JSON}"
     jq -e --arg n "$name" '.[] | select(.name == $n)' <<<"$nodes" >/dev/null 2>&1 ||
         err "未找到节点: ${name}"
 
