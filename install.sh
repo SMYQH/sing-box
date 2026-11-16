@@ -1,6 +1,8 @@
 #!/bin/bash
 # 一键安装脚本 (仅从 GitHub 获取文件)
 #
+# 运行环境: Debian 系系统 (apt) + systemd
+#
 # 安装流程:
 #   1. 安装依赖 (curl / tar / jq)
 #   2. 从 GitHub 下载本项目脚本
@@ -13,7 +15,7 @@ IS_REPO="SMYQH/sing-box"
 IS_REPO_URL="https://github.com/${IS_REPO}"
 : "${IS_TARBALL:=https://github.com/${IS_REPO}/archive/refs/heads/main.tar.gz}"
 
-IS_SH_VER="1.0.1"
+IS_SH_VER="1.0.2"
 IS_CORE_NAME="sing-box"
 
 red='\e[31m'
@@ -43,12 +45,34 @@ trap _cleanup_tmp EXIT INT TERM
 
 [[ $EUID != 0 ]] && err "请使用 root 用户运行此脚本."
 
+# 读取系统名称 (仅用于提示信息)
+os_name() {
+    [[ -r /etc/os-release ]] || { echo "未知系统"; return; }
+    local name
+    name=$(awk -F= '$1=="PRETTY_NAME"{gsub(/"/,"",$2); print $2; exit}' /etc/os-release)
+    echo "${name:-未知系统}"
+}
+
+# 判断是否为 Debian 系系统 (Debian 及其衍生版, 如 Ubuntu / Devuan)
+is_debian_os() {
+    [[ -r /etc/os-release ]] || return 1
+    local id id_like
+    id=$(awk -F= '$1=="ID"{gsub(/"/,"",$2); print $2; exit}' /etc/os-release)
+    id_like=$(awk -F= '$1=="ID_LIKE"{gsub(/"/,"",$2); print $2; exit}' /etc/os-release)
+    [[ $id == debian ]] && return 0
+    [[ " ${id_like} " == *" debian "* ]] && return 0
+    return 1
+}
+
+# 校验运行环境: 仅支持 Debian 系 (apt) 且使用 systemd
+check_env() {
+    is_debian_os || err "此脚本仅支持 Debian 系统 (当前系统: $(os_name))."
+    [[ -n $(type -P apt-get) ]] || err "未检测到 apt-get, 请确认使用的是标准 Debian 系统."
+    [[ -n $(type -P systemctl) ]] || err "未检测到 systemd, 请确认使用的是标准 Debian 系统."
+}
+
 # install dependencies
 install_deps() {
-    local cmd
-    cmd=$(type -P apt-get || type -P yum || type -P zypper || type -P apk)
-    [[ ! $cmd ]] && err "此脚本仅支持 (Ubuntu / Debian / CentOS / SUSE / Alpine)."
-
     local need=""
     for i in curl tar jq; do
         [[ ! $(type -P $i) ]] && need="$need $i"
@@ -56,12 +80,8 @@ install_deps() {
     [[ -z $need ]] && return
 
     msg "安装依赖:$need"
-    case $cmd in
-    */apt-get) apt-get update -qq && apt-get install -y $need ;;
-    */yum) yum install -y $need ;;
-    */zypper) zypper install -y $need ;;
-    */apk) apk add --no-cache $need ;;
-    esac
+    DEBIAN_FRONTEND=noninteractive apt-get update -qq || err "apt-get update 失败."
+    DEBIAN_FRONTEND=noninteractive apt-get install -y $need || err "依赖安装失败: $need"
 }
 
 # download and install the management script from GitHub
@@ -127,6 +147,7 @@ WRAPPER
 
 case ${1:-install} in
 install)
+    check_env
     install_deps
     install_script
     sb install

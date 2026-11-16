@@ -8,7 +8,7 @@
 #     no ACME / certificate authorities, no analytics of any kind.
 #   - The public IP is derived from the local network interface, not queried.
 
-IS_SH_VER="1.0.1"
+IS_SH_VER="1.0.2"
 IS_CORE_NAME="sing-box"
 IS_CORE_REPO="SagerNet/sing-box"
 IS_CORE_API="https://api.github.com/repos/${IS_CORE_REPO}/releases/latest"
@@ -98,6 +98,32 @@ is_root() {
     [[ $EUID != 0 ]] && err "请使用 root 用户运行此脚本."
 }
 
+# Read the operating system name (used for error messages only).
+is_os_name() {
+    [[ -r /etc/os-release ]] || { echo "未知系统"; return; }
+    local name
+    name=$(awk -F= '$1=="PRETTY_NAME"{gsub(/"/,"",$2); print $2; exit}' /etc/os-release)
+    echo "${name:-未知系统}"
+}
+
+# True when the host is Debian or a Debian derivative (Ubuntu, Devuan, ...).
+# 本项目只在 Debian 上测试过, 因此包管理器与服务管理只保留这一条分支.
+is_debian_os() {
+    [[ -r /etc/os-release ]] || return 1
+    local id id_like
+    id=$(awk -F= '$1=="ID"{gsub(/"/,"",$2); print $2; exit}' /etc/os-release)
+    id_like=$(awk -F= '$1=="ID_LIKE"{gsub(/"/,"",$2); print $2; exit}' /etc/os-release)
+    [[ $id == debian ]] && return 0
+    [[ " ${id_like} " == *" debian "* ]] && return 0
+    return 1
+}
+
+# Make sure the host is a supported Debian system running systemd.
+is_require_debian() {
+    is_debian_os || err "此脚本仅支持 Debian 系统 (当前系统: $(is_os_name))."
+    [[ $IS_SYSTEMD ]] || err "未检测到 systemd, 请确认使用的是标准 Debian 系统."
+}
+
 # Detect the release architecture name used by sing-box assets.
 is_arch() {
     local arch
@@ -144,6 +170,5 @@ is_random_uuid() {
     cat /proc/sys/kernel/random/uuid
 }
 
-# Detect the init system in use.
+# Debian 使用 systemd 作为 init 系统.
 IS_SYSTEMD=$(type -P systemctl)
-IS_OPENRC=$(type -P rc-service)

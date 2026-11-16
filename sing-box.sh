@@ -12,6 +12,7 @@ load help.sh
 
 is_update_core() {
     local current
+    is_require_debian
     # 内核目录可能还不存在 (全新主机, 或先执行 update 而未 install),
     # 必须先创建目录, 否则下载完成后复制内核会失败。
     is_prepare_dirs
@@ -28,6 +29,7 @@ is_update_core() {
 
 is_install() {
     is_root
+    is_require_debian
     is_prepare_dirs
     msg "安装 ${IS_CORE_NAME} 内核 ..."
     is_download_core

@@ -23,6 +23,7 @@ ${IS_CORE_NAME} 管理脚本 v${IS_SH_VER}
   help                       显示本帮助
 
 说明:
+  - 仅支持 Debian 系系统 (apt + systemd), 未在其他发行版上测试。
   - 所有网络请求仅指向 GitHub (api.github.com / github.com)。
   - 不收集任何数据, 不上报任何遥测, 不使用第三方 DNS 或 IP 查询服务。
   - 本脚本不提供自更新, 如需更新请手动获取新版本。

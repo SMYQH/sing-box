@@ -16,9 +16,12 @@
 
 ## 环境要求
 
-- Debian
+- Debian 系系统（Debian 及其衍生版，如 Ubuntu / Devuan），需使用 `apt` 安装依赖
 - root 权限
 - systemd
+
+> 脚本仅在 Debian 上验证过，其他发行版（CentOS / SUSE / Alpine 等）不再适配，
+> 运行时会直接提示系统不受支持。
 
 ## 安装
 
@@ -30,7 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/SMYQH/sing-box/main/install.sh | su
 
 脚本会依次完成：
 
-1. 安装依赖（`curl` / `tar` / `jq`）；
+1. 校验系统（Debian 系 + systemd）并通过 `apt` 安装依赖（`curl` / `tar` / `jq`）；
 2. 从 GitHub 下载管理脚本到 `/usr/local/lib/sing-box`，并创建 `/usr/local/bin/sb`；
 3. 下载 `sing-box` 内核到 `/etc/sing-box/bin/sing-box`（校验 GitHub Release 提供的 SHA-256）；
 4. 生成配置、注册并启动 `sing-box` systemd 服务。

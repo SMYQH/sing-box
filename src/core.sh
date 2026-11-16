@@ -277,28 +277,22 @@ is_del_node() {
     is_restart
 }
 
-# Service control.
+# Service control (systemd only).
 is_service_action() {
     local action=$1
-    if [[ $IS_SYSTEMD ]]; then
-        systemctl "$action" sing-box
-    elif [[ $IS_OPENRC ]]; then
-        rc-service sing-box "$action"
-    else
-        err "未检测到 systemd 或 openrc."
-    fi
+    [[ $IS_SYSTEMD ]] || err "未检测到 systemd, 无法执行 ${action}."
+    systemctl "$action" sing-box
 }
 
 is_restart() {
-    is_service_action restart >/dev/null 2>&1
+    # 检查放在重定向之外, 否则缺少 systemd 时会静默退出而不给出提示.
+    [[ $IS_SYSTEMD ]] || err "未检测到 systemd, 无法重启 sing-box 服务."
+    systemctl restart sing-box >/dev/null 2>&1
 }
 
 # Install the systemd unit.
 is_install_service() {
-    if [[ ! $IS_SYSTEMD ]]; then
-        warn "未检测到 systemd, 请手动管理 sing-box 服务."
-        return
-    fi
+    [[ $IS_SYSTEMD ]] || err "未检测到 systemd, 无法安装 sing-box 服务."
     cat >/etc/systemd/system/sing-box.service <<UNIT
 [Unit]
 Description=Sing-box Service
