@@ -9,7 +9,7 @@
 #
 # 该脚本不会联系除 GitHub 以外的任何主机.
 
-IS_REPO="SMYQH/singbox"
+IS_REPO="SMYQH/sing-box"
 IS_REPO_URL="https://github.com/${IS_REPO}"
 : "${IS_TARBALL:=https://github.com/${IS_REPO}/archive/refs/heads/main.tar.gz}"
 
@@ -66,21 +66,28 @@ install_deps() {
 
 # download and install the management script from GitHub
 install_script() {
-    local tmpdir sh_dir src_dir
+    local tmpdir sh_dir src_dir stage repo_root d
     tmpdir=$(mktemp -d)
     IS_TMPDIR="$tmpdir"
     sh_dir="/usr/local/lib/sing-box"
+    # 新版本先落到暂存目录, 最后整体替换旧目录。
+    # 原因: 直接在源目录上做 rm -rf 会把管理脚本自己删掉
+    #       (运行已安装的副本时 src_dir 与 sh_dir 是同一个目录)。
+    stage="${tmpdir}/stage"
 
     # 从仓库检出目录运行时直接使用本地文件。
     # 原因: GitHub 的分支 tarball 存在 CDN 缓存, push 后短时间内取到的仍是旧版本,
     #       会造成"明明 clone 到新版本却装上旧脚本"的现象。
-    src_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
+    # 仅当脚本以文件方式执行时才考虑使用本地目录;
+    # 通过管道执行 (curl ... | bash) 时一律从 GitHub 下载官方版本。
+    src_dir=""
+    if [[ -n ${BASH_SOURCE[0]:-} ]]; then
+        src_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)
+    fi
     if [[ -n $src_dir && -f "$src_dir/sing-box.sh" && -d "$src_dir/src" ]]; then
         msg "使用当前目录的管理脚本: ${src_dir}"
-        # 先清空旧目录, 避免上一版本中被删除的文件长期驻留
-        rm -rf "$sh_dir"
-        mkdir -p "$sh_dir"
-        cp -rf "${src_dir}/." "$sh_dir/"
+        mkdir -p "$stage"
+        cp -rf "${src_dir}/." "$stage/" || err "复制管理脚本失败."
     else
         msg "从 GitHub 下载管理脚本 ..."
         if ! curl -fsSL --retry 3 -o "${tmpdir}/main.tar.gz" "$IS_TARBALL"; then
@@ -88,13 +95,26 @@ install_script() {
         fi
 
         tar zxf "${tmpdir}/main.tar.gz" -C "$tmpdir" || err "解压失败."
-        [[ ! -d $tmpdir/singbox-main ]] && err "未找到预期的目录结构."
+        # GitHub 以仓库名作为压缩包根目录, 仓库改名后根目录名也会跟着变,
+        # 因此这里自动识别顶层目录, 不写死目录名。
+        repo_root=""
+        for d in "$tmpdir"/*/; do
+            [[ -d $d ]] || continue
+            if [[ -f "${d}sing-box.sh" && -d "${d}src" ]]; then
+                repo_root="${d%/}"
+                break
+            fi
+        done
+        [[ -z $repo_root ]] && err "未找到预期的目录结构."
 
-        # 先清空旧目录, 避免上一版本中被删除的文件长期驻留
-        rm -rf "$sh_dir"
-        mkdir -p "$sh_dir"
-        cp -rf "${tmpdir}/singbox-main/." "$sh_dir/"
+        mkdir -p "$stage"
+        cp -rf "${repo_root}/." "$stage/" || err "复制管理脚本失败."
     fi
+
+    # 先清空旧目录, 避免上一版本中被删除的文件长期驻留
+    rm -rf "$sh_dir"
+    mkdir -p "$(dirname "$sh_dir")"
+    mv "$stage" "$sh_dir" || err "安装管理脚本失败: ${sh_dir}"
     rm -rf "${sh_dir}/.github" "${sh_dir}/.git"
 
     cat >/usr/local/bin/sb <<WRAPPER
@@ -114,6 +134,7 @@ install)
     ;;
 -h | --help)
     echo "用法: bash install.sh [install]"
+    echo "一键安装: curl -fsSL https://raw.githubusercontent.com/${IS_REPO}/main/install.sh | sudo bash"
     ;;
 *)
     err "未知参数: $1"

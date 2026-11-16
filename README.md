@@ -5,7 +5,7 @@
 ## 特性
 
 - **零数据采集**：不收集、不上报任何用户数据与遥测信息。
-- **仅连接 GitHub**：除 GitHub（`api.github.com` / `github.com`）外，**脚本本身**不会访问任何外部主机。
+- **仅连接 GitHub**：除 GitHub（`api.github.com` / `github.com` / `raw.githubusercontent.com`）外，**脚本本身**不会访问任何外部主机。
   - 不使用 IP 查询服务（如 `one.one.one.one`）获取公网 IP，公网 IP 从本机网卡读取。
   - 不内置第三方 DNS 服务器（Cloudflare / Google DoH），DNS 交由系统解析。
   - 不含 Caddy / ACME 自动证书签发，不与 Let's Encrypt 等 CA 通信。
@@ -22,23 +22,34 @@
 
 ## 安装
 
+### 一键安装（推荐）
+
 ```bash
+curl -fsSL https://raw.githubusercontent.com/SMYQH/sing-box/main/install.sh | sudo bash
+```
+
+脚本会依次完成：
+
+1. 安装依赖（`curl` / `tar` / `jq`）；
+2. 从 GitHub 下载管理脚本到 `/usr/local/lib/sing-box`，并创建 `/usr/local/bin/sb`；
+3. 下载 `sing-box` 内核到 `/etc/sing-box/bin/sing-box`（校验 GitHub Release 提供的 SHA-256）；
+4. 生成配置、注册并启动 `sing-box` systemd 服务。
+
+### 从源码安装
+
+```bash
+git clone https://github.com/SMYQH/sing-box
+cd sing-box
 bash install.sh
 ```
 
-或手动安装：
+在源码目录内执行时，直接使用该目录中的脚本文件。
+
+只重新安装内核与 systemd 服务（管理脚本已就位时）：
 
 ```bash
-# 1. 安装依赖
-apt update && apt install -y curl tar jq
-
-# 2. 下载脚本到 /usr/local/lib/sing-box 并创建 /usr/local/bin/sb
-
-# 3. 安装内核并注册服务
 sb install
 ```
-
-重复执行 `bash install.sh` 是安全的：安装前会先清空 `/usr/local/lib/sing-box`，旧版本中已删除的文件不会残留；若目标版本的内核已安装，则跳过内核下载。安装过程中产生的临时目录在正常结束、失败或被中断时都会被清理。
 
 ## 使用
 
